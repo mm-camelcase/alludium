@@ -42,6 +42,15 @@ const swaggerOptions = {
   `
 };
 
+// Add CORS middleware specifically for Swagger UI assets
+router.use('/', (req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', '*');
+  res.removeHeader('Content-Security-Policy');
+  next();
+});
+
 // Serve Swagger UI directly with the spec
 router.use('/', swaggerUi.serve);
 router.get('/', (req, res, next) => {
@@ -49,6 +58,9 @@ router.get('/', (req, res, next) => {
   res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
   res.header('Access-Control-Allow-Headers', '*');
+  
+  // Remove restrictive CSP for Swagger UI to work properly
+  res.removeHeader('Content-Security-Policy');
   
   // Setup Swagger UI with the loaded spec
   const swaggerUiHandler = swaggerUi.setup(openApiSpec, swaggerOptions);

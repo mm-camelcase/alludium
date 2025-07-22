@@ -157,7 +157,7 @@ router.patch('/:id', asyncHandler(async (req: Request, res: Response, next: Next
   }
 
   // Validate title if provided
-  if (req.body.title !== undefined && req.body.title.trim().length === 0) {
+  if (req.body.title !== undefined && (typeof req.body.title !== 'string' || req.body.title.trim().length === 0)) {
     throw new AppError('Title cannot be empty', 400);
   }
 
