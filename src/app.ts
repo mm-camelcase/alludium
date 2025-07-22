@@ -1,5 +1,4 @@
 import express, { Application, Request, Response, NextFunction } from 'express';
-import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 
@@ -8,37 +7,52 @@ import { logger } from '@/utils/logger';
 import { globalErrorHandler, AppError } from '@/middleware/errorHandler';
 import healthRoutes from '@/routes/health';
 import docsRoutes from '@/routes/docs';
-import todoRoutes from '@/routes/simple-todos';
+import todoRoutes from '@/routes/simple-todos-db';
 
 const app: Application = express();
 
 // Trust proxy (for load balancers, reverse proxies)
 app.set('trust proxy', 1);
 
-// Security middleware
-app.use(helmet({
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
-      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"], // Swagger UI needs unsafe-eval
-      imgSrc: ["'self'", "data:", "https:", "https://validator.swagger.io"],
-      fontSrc: ["'self'", "https://fonts.gstatic.com"],
-      connectSrc: ["'self'", "https://validator.swagger.io"],
-    },
-  },
-}));
+// Global OPTIONS handler for CORS preflight - MUST be before other middleware
+app.options('*', (req: Request, res: Response) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', '*');
+  res.header('Access-Control-Max-Age', '86400');
+  res.sendStatus(200);
+});
 
-// CORS configuration - Completely permissive for development
-app.use(cors({
-  origin: '*', // Allow all origins
-  credentials: false, // Don't require credentials
-  optionsSuccessStatus: 200,
-  methods: '*', // Allow all methods
-  allowedHeaders: '*', // Allow all headers
-  exposedHeaders: '*', // Expose all headers
-  maxAge: 86400 // Cache preflight for 24 hours
-}));
+// Security middleware - Disabled for development
+// app.use(helmet({
+//   contentSecurityPolicy: {
+//     directives: {
+//       defaultSrc: ["'self'"],
+//       styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+//       scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"], // Swagger UI needs unsafe-eval
+//       imgSrc: ["'self'", "data:", "https:", "https://validator.swagger.io"],
+//       fontSrc: ["'self'", "https://fonts.gstatic.com"],
+//       connectSrc: ["'self'", "https://validator.swagger.io"],
+//     },
+//   },
+// }));
+
+// CORS configuration - Manual implementation for maximum compatibility
+app.use((req: Request, res: Response, next: NextFunction) => {
+  // Set CORS headers for all requests
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Credentials', 'false');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Cache-Control, X-API-Key');
+  res.header('Access-Control-Max-Age', '86400');
+  
+  // Handle preflight OPTIONS requests immediately
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+  
+  return next();
+});
 
 // Rate limiting - Disabled for development
 // const limiter = rateLimit({
@@ -58,19 +72,8 @@ app.use(cors({
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Request logging middleware and additional CORS headers
+// Request logging middleware
 app.use((req: Request, res: Response, next: NextFunction) => {
-  // Additional CORS headers for maximum compatibility
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Headers', '*');
-  res.header('Access-Control-Expose-Headers', '*');
-  
-  // Handle preflight requests
-  if (req.method === 'OPTIONS') {
-    return res.sendStatus(200);
-  }
-  
   logger.info(`${req.method} ${req.url}`, {
     ip: req.ip,
     userAgent: req.get('User-Agent'),

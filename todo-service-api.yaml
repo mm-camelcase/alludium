@@ -23,9 +23,9 @@ info:
     url: https://opensource.org/licenses/MIT
 
 servers:
-  - url: http://localhost:3001/api/v1
+  - url: http://localhost:3000/api/v1
     description: Local development server
-  - url: http://localhost:3001/v1
+  - url: http://localhost:3000/v1
     description: Local development server (alternative path)
 
 # security:

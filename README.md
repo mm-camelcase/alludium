@@ -37,7 +37,12 @@ A contract-first REST API for managing TODO items, built with Node.js, TypeScrip
 ### API Endpoints
 
 - **Health Check**: `GET /health`
-- **API Documentation**: `GET /api/v1` (Coming in Task 3)
+- **API Documentation**: `GET /docs` (Swagger UI)
+- **List TODOs**: `GET /api/v1/todos` or `GET /v1/todos`
+- **Create TODO**: `POST /api/v1/todos` or `POST /v1/todos`
+- **Get TODO**: `GET /api/v1/todos/{id}`
+- **Update TODO**: `PUT /api/v1/todos/{id}` or `PATCH /api/v1/todos/{id}`
+- **Delete TODO**: `DELETE /api/v1/todos/{id}`
 
 ## 🏗️ Architecture
 
@@ -46,27 +51,37 @@ This project follows contract-first development principles:
 - **OpenAPI Specification**: Single source of truth for API design
 - **TypeScript**: Type safety throughout the application
 - **Express.js**: Web framework with security middleware
-- **PostgreSQL**: Relational database with proper indexing
+- **PostgreSQL**: Relational database with TypeORM integration
+- **TypeORM**: Object-relational mapping with decorator pattern
 - **Docker**: Containerized development and deployment
 
 ## 📁 Project Structure
 
 ```
 src/
-├── config/          # Configuration management
-├── controllers/     # Request handlers (Task 3)
-├── middleware/      # Express middleware
-├── models/          # Database models (Task 2)
-├── routes/          # Route definitions
-├── services/        # Business logic (Task 3)
-├── types/           # TypeScript type definitions
-├── utils/           # Utility functions
-└── server.ts        # Application entry point
+├── config/          # Environment configuration & database setup
+│   ├── config.ts    # Zod validation for environment variables
+│   └── database.ts  # TypeORM DataSource configuration
+├── entities/        # TypeORM database entities
+│   ├── Todo.ts      # Main Todo entity with relationships
+│   ├── SubTask.ts   # SubTask entity with cascade delete
+│   └── User.ts      # User entity for authentication
+├── middleware/      # Express middleware (error handling, CORS)
+├── repositories/    # Data access layer with repository pattern
+│   └── TodoRepository.ts # Complex querying and filtering
+├── routes/          # Route definitions (health, docs, todos)
+│   ├── health.ts    # Health check endpoints
+│   ├── docs.ts      # Swagger UI configuration
+│   └── simple-todos-db.ts # TODO CRUD with PostgreSQL backend
+├── seeds/           # Database seeding scripts
+│   └── initial-data.ts # Demo data creation
+├── utils/           # Utility functions (logger, async handlers)
+├── app.ts           # Express app setup and middleware stack
+└── server.ts        # Application entry point with DB initialization
 
-tests/
-├── unit/            # Unit tests (Task 5)
-├── integration/     # Integration tests (Task 5)
-└── e2e/             # End-to-end tests (Task 5)
+todo-service-api.yaml # Complete OpenAPI 3.0.3 specification
+docker-compose.yml   # PostgreSQL + API containerization
+scripts/init-db.sql  # Database schema initialization
 ```
 
 ## 🛠️ Development
@@ -84,6 +99,7 @@ The project includes pre-configured VS Code settings:
 - `npm run dev` - Start development server with hot reload
 - `npm run build` - Build TypeScript to JavaScript
 - `npm run start` - Start production server
+- `npm run db:seed` - Seed database with demo data
 - `npm run test` - Run tests (Task 5)
 - `npm run lint` - Lint code
 - `npm run docker:up` - Start all services with Docker
@@ -91,12 +107,12 @@ The project includes pre-configured VS Code settings:
 
 ## 🔒 Security Features
 
-- **Helmet.js** for security headers
-- **CORS** configuration
-- **Rate limiting** to prevent abuse
-- **Input validation** and sanitization
-- **JWT** authentication (Task 3)
-- **API key** support (Task 3)
+- **Helmet.js** for security headers (disabled in development)
+- **CORS** manual implementation with permissive development settings
+- **Rate limiting** to prevent abuse (disabled in development)
+- **Input validation** and sanitization (planned)
+- **JWT** authentication (planned)
+- **API key** support (planned)
 
 ## 📊 Monitoring & Health Checks
 
@@ -130,11 +146,33 @@ The project includes:
 ## 📝 Implementation Status
 
 - [x] **Task 1**: Development Environment & Infrastructure Setup
-- [ ] **Task 2**: Database Schema & ORM Implementation
-- [ ] **Task 3**: Contract-First API Core Implementation
-- [ ] **Task 4**: Advanced Features & Security
+- [x] **Task 2**: OpenAPI Specification & Contract Definition
+- [x] **Task 3**: Basic CRUD API Implementation (Database-Backed)
+- [x] **Task 4**: Database Integration & ORM Implementation (TypeORM + PostgreSQL)
+- [x] **Task 9**: Swagger UI Documentation Integration
 - [ ] **Task 5**: Testing & Quality Assurance
 - [ ] **Task 6**: Production Readiness & Monitoring
+
+### Current Features ✅
+
+- Complete OpenAPI 3.0.3 specification with all endpoints defined
+- Interactive Swagger UI documentation at `/docs`
+- Full CRUD operations with PostgreSQL database persistence
+- TypeORM entities with proper relationships and decorators
+- Repository pattern for data access with complex querying
+- Database seeding with demo data (`npm run db:seed`)
+- Health check endpoints for monitoring
+- Docker Compose setup with PostgreSQL
+- Development-friendly CORS configuration
+- TypeScript with strict type checking
+- Structured logging with Winston
+
+### Next Steps 🚧
+
+- Implement authentication and authorization (JWT + API keys)
+- Add comprehensive test coverage (Jest + Supertest)
+- Production security hardening (rate limiting, input validation)
+- Advanced features (filtering, pagination, bulk operations, search)
 
 ## 🤝 Contributing
 

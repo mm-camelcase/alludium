@@ -2,7 +2,6 @@ import { Router } from 'express';
 import swaggerUi from 'swagger-ui-express';
 import YAML from 'yamljs';
 import path from 'path';
-import fs from 'fs';
 
 const router = Router();
 
@@ -25,70 +24,35 @@ try {
   };
 }
 
-// Swagger UI options
+// Swagger UI options with Try it out enabled
 const swaggerOptions = {
   explorer: true,
   swaggerOptions: {
-    url: '/docs/openapi.json',
-    docExpansion: 'none',
+    docExpansion: 'list',
     filter: true,
     showRequestHeaders: true,
     showCommonExtensions: true,
-    tryItOutEnabled: true
+    tryItOutEnabled: true,
+    supportedSubmitMethods: ['get', 'post', 'put', 'delete', 'patch', 'head', 'options']
   },
+  customSiteTitle: 'TODO Service API Documentation',
   customCss: `
     .swagger-ui .topbar { display: none }
     .swagger-ui .info .title { color: #3b4151; }
-    .swagger-ui .scheme-container { background: #f7f7f7; padding: 15px; border-radius: 4px; margin: 15px 0; }
-  `,
-  customSiteTitle: 'TODO Service API Documentation',
-  customfavIcon: '/favicon.ico'
+  `
 };
 
-/**
- * @route GET /docs/openapi.json
- * @description Get OpenAPI specification in JSON format
- * @access Public
- */
-router.get('/openapi.json', (req, res) => {
-  try {
-    res.setHeader('Content-Type', 'application/json');
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-    
-    // Update server URLs dynamically based on the request
-    const spec = { ...openApiSpec };
-    const baseUrl = `${req.protocol}://${req.get('host')}`;
-    
-    if (spec.servers) {
-      spec.servers = spec.servers.map((server: any) => {
-        if (server.url.includes('localhost')) {
-          return {
-            ...server,
-            url: `${baseUrl}/api/v1`
-          };
-        }
-        return server;
-      });
-    }
-    
-    res.json(spec);
-  } catch (error) {
-    console.error('❌ Error serving OpenAPI spec:', error);
-    res.status(500).json({
-      error: 'Failed to load OpenAPI specification',
-      message: 'The OpenAPI specification file could not be loaded'
-    });
-  }
-});
-
-/**
- * @route GET /docs
- * @description Serve Swagger UI documentation
- * @access Public
- */
+// Serve Swagger UI directly with the spec
 router.use('/', swaggerUi.serve);
-router.get('/', swaggerUi.setup(openApiSpec, swaggerOptions));
+router.get('/', (req, res, next) => {
+  // Add CORS headers to the documentation page itself
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', '*');
+  
+  // Setup Swagger UI with the loaded spec
+  const swaggerUiHandler = swaggerUi.setup(openApiSpec, swaggerOptions);
+  swaggerUiHandler(req, res, next);
+});
 
 export default router;
