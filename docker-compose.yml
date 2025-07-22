@@ -35,9 +35,23 @@ services:
     environment:
       NODE_ENV: development
       PORT: 3000
+      API_VERSION: v1
       DATABASE_URL: postgresql://todo_user:todo_password@postgres:5432/todo_db
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: todo_db
+      DB_USER: todo_user
+      DB_PASSWORD: todo_password
       JWT_SECRET: dev-jwt-secret-change-in-production
+      JWT_EXPIRES_IN: 24h
+      JWT_REFRESH_EXPIRES_IN: 7d
       API_KEY_SECRET: dev-api-key-secret-change-in-production
+      RATE_LIMIT_WINDOW_MS: 900000
+      RATE_LIMIT_MAX_REQUESTS: 100
+      LOG_LEVEL: debug
+      LOG_FORMAT: combined
+      CORS_ORIGIN: "http://localhost:3000,http://localhost:3001"
+      BCRYPT_SALT_ROUNDS: 12
     volumes:
       - .:/app
       - /app/node_modules

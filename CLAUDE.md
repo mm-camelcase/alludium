@@ -31,30 +31,30 @@ npm test                       # Run Jest tests (when implemented)
 npm run test:watch            # Run tests in watch mode
 npm run test:coverage         # Generate coverage report
 
-# Database (to be implemented in Task 2)
-npm run db:migrate            # Run database migrations
-npm run db:seed               # Seed development data
-npm run db:reset              # Reset database
+# Database
+npm run db:seed               # Seed development data with demo TODOs and users
+typeorm                       # TypeORM CLI commands
 ```
 
 ## Architecture & Key Patterns
 
 ### Contract-First Development
 - **OpenAPI Specification** (`todo-service-api.yaml`) is the single source of truth
-- API routes and validation will be generated from the spec (Task 3)
-- All endpoints must match the OpenAPI contract exactly
+- Complete specification with all CRUD endpoints, schemas, and documentation
+- Swagger UI available at `/docs` for interactive testing
+- All endpoints implemented in `src/routes/simple-todos-db.ts` with PostgreSQL backend match the contract exactly
 
 ### Layered Architecture
 ```
 src/
-├── config/          # Environment configuration with Zod validation
-├── controllers/     # HTTP request/response handling (Task 3)
+├── config/          # Environment configuration with Zod validation, TypeORM setup
+├── entities/        # TypeORM entity definitions (Todo, User, SubTask)
 ├── middleware/      # Cross-cutting concerns (auth, logging, errors)
-├── models/          # Database entities & ORM models (Task 2)  
-├── routes/          # Express route definitions
-├── services/        # Business logic layer (Task 3)
-├── types/           # TypeScript type definitions
-└── utils/           # Shared utilities (logger, validators)
+├── repositories/    # Data access layer with repository pattern
+├── routes/          # Express route definitions with database integration
+├── seeds/           # Database seeding scripts
+├── utils/           # Shared utilities (logger, asyncHandler)
+└── server.ts        # Application entry point with database initialization
 ```
 
 ### TypeScript Path Aliases
@@ -72,10 +72,11 @@ src/
 - Environment-specific error responses (detailed in dev, sanitized in prod)
 
 ### Security Middleware Stack
-1. **Helmet.js** - Security headers (CSP, XSS protection, etc.)
-2. **CORS** - Configured origins from environment
-3. **Rate Limiting** - IP-based limiting with configurable windows
+1. **Helmet.js** - Security headers (currently disabled for development)
+2. **CORS** - Manual implementation with permissive settings for development
+3. **Rate Limiting** - IP-based limiting (currently disabled for development)
 4. **Body Size Limits** - 10MB max for JSON/URL-encoded
+5. **Global OPTIONS handler** - Handles preflight requests for CORS
 
 ### Logging Strategy
 - Winston logger with structured JSON logging
@@ -88,37 +89,70 @@ src/
 - `/health/ready` - Kubernetes readiness probe (checks startup time)
 - `/health/live` - Kubernetes liveness probe (simple ping)
 
-## Database Architecture (Task 2)
+## Database Architecture (Completed)
 
 ### PostgreSQL Configuration
 - Version 16 (Alpine) in Docker
 - Custom schema: `todo_app` for isolation
 - Extensions: `uuid-ossp`, `pg_trgm` (for search)
-- Connection pooling via ORM
+- Connection pooling via TypeORM DataSource
+- Auto-sync enabled in development environment
 
-### Planned Schema
-```sql
--- Users (authentication)
-- id, email, password_hash, created_at, updated_at
+### Implemented TypeORM Schema
+```typescript
+// Todo Entity (src/entities/Todo.ts)
+@Entity('todos')
+class Todo {
+  @PrimaryGeneratedColumn('uuid') id: string;
+  @Column() title: string;
+  @Column({ nullable: true }) description?: string;
+  @Column({ enum: ['pending', 'in-progress', 'completed', 'deferred', 'cancelled'] }) status: TodoStatus;
+  @Column({ enum: ['low', 'medium', 'high'] }) priority: TodoPriority;
+  @Column({ nullable: true }) dueDate?: Date;
+  @Column({ type: 'simple-array', nullable: true }) tags?: string[];
+  @CreateDateColumn() createdAt: Date;
+  @UpdateDateColumn() updatedAt: Date;
+  @OneToMany(() => SubTask, subTask => subTask.todo, { cascade: true }) subTasks?: SubTask[];
+  @ManyToOne(() => User, { nullable: true }) user?: User;
+}
 
--- Todos (core entity)
-- id, user_id, title, description, status, priority, due_date, created_at, updated_at
+// SubTask Entity (src/entities/SubTask.ts)
+@Entity('sub_tasks')
+class SubTask {
+  @PrimaryGeneratedColumn('uuid') id: string;
+  @Column() title: string;
+  @Column({ nullable: true }) description?: string;
+  @Column({ enum: ['pending', 'in-progress', 'completed'] }) status: SubTaskStatus;
+  @CreateDateColumn() createdAt: Date;
+  @UpdateDateColumn() updatedAt: Date;
+  @ManyToOne(() => Todo, todo => todo.subTasks, { onDelete: 'CASCADE' }) todo: Todo;
+}
 
--- Tags (categorization)
-- id, name, created_at, updated_at
-
--- TodoTags (many-to-many)
-- todo_id, tag_id
-
--- ApiKeys (alternative auth)
-- id, user_id, key_hash, name, created_at, expires_at
+// User Entity (src/entities/User.ts) - For future authentication
+@Entity('users')
+class User {
+  @PrimaryGeneratedColumn('uuid') id: string;
+  @Column({ unique: true }) email: string;
+  @Column() passwordHash: string;
+  @CreateDateColumn() createdAt: Date;
+  @UpdateDateColumn() updatedAt: Date;
+  @OneToMany(() => Todo, todo => todo.user) todos?: Todo[];
+}
 ```
 
+### TypeORM Features Used
+- **Decorators**: `@Entity`, `@Column`, `@PrimaryGeneratedColumn`, `@CreateDateColumn`, `@UpdateDateColumn`
+- **Relationships**: `@OneToMany`, `@ManyToOne`, `@JoinColumn` with cascade options
+- **Enum Types**: Status and priority columns with type safety
+- **UUID Generation**: Primary keys use PostgreSQL uuid generation
+- **Automatic Timestamps**: Created/updated timestamps managed by TypeORM
+- **Query Builder**: Complex filtering in TodoRepository with joins and pagination
+
 ### Performance Indexing Strategy
-- Primary keys on all tables
-- Foreign key indexes
-- Composite index on (user_id, status, created_at) for filtered queries
-- Text search index on title/description (using pg_trgm)
+- Primary keys on all tables (UUID type)
+- Foreign key indexes (auto-created by TypeORM)
+- Composite index on (user_id, status, created_at) for filtered queries (planned)
+- Text search index on title/description (using pg_trgm) (planned)
 
 ## Implementation Status
 
@@ -127,14 +161,23 @@ Current implementation follows these phases:
 1. ✅ **Task 1**: Development Environment & Infrastructure Setup
    - Docker setup, TypeScript config, basic Express server, health checks
 
-2. ⏳ **Task 2**: Database Schema & ORM Implementation
-   - PostgreSQL schema, Prisma/TypeORM setup, migrations, seed data
+2. ✅ **Task 2**: OpenAPI Specification & Contract Definition
+   - Complete OpenAPI 3.0.3 specification in `todo-service-api.yaml`
+   - Comprehensive schemas for TodoItem, SubTask, Error types, Pagination
+   - Full endpoint definitions with request/response schemas
 
-3. ⏳ **Task 3**: Contract-First API Core Implementation  
-   - OpenAPI integration, CRUD operations, JWT/API key auth, validation
+3. ✅ **Task 3**: Basic CRUD API Implementation
+   - Database-backed TODO storage with TypeORM (`src/routes/simple-todos-db.ts`)
+   - All CRUD operations: GET, POST, PUT, PATCH, DELETE
+   - Swagger UI documentation at `/docs` endpoint
+   - CORS configuration for development
 
-4. ⏳ **Task 4**: Advanced Features & Security
-   - Filtering/pagination, bulk operations, rate limiting, search
+4. ✅ **Task 4**: Database Integration & ORM Implementation
+   - PostgreSQL database with custom `todo_app` schema
+   - TypeORM entities: Todo, SubTask, User with proper relationships
+   - Repository pattern implementation for data access
+   - Database seeding with initial demo data
+   - Persistent storage replacing in-memory implementation
 
 5. ⏳ **Task 5**: Testing & Quality Assurance
    - Jest setup, unit/integration tests, contract testing, 80%+ coverage
@@ -221,10 +264,10 @@ tests/
 6. Update Task Master status
 
 ### Database Changes
-1. Update Prisma/TypeORM schema
-2. Generate migration
-3. Test migration locally
-4. Update seed data if needed
+1. Update TypeORM entity definitions in `src/entities/`
+2. Test schema synchronization in development
+3. Update seed data in `src/seeds/initial-data.ts` if needed
+4. Run `npm run db:seed` to populate test data
 5. Document in Task Master
 
 ### Debugging Issues
@@ -233,10 +276,42 @@ tests/
 3. Docker logs: `npm run docker:logs`
 4. Database queries: Check ORM debug mode
 
+## Current API Endpoints
+
+The API is currently implemented with PostgreSQL database backend and provides:
+
+- **GET /api/v1/todos** or **GET /v1/todos** - List all TODOs with pagination/filtering
+- **POST /api/v1/todos** or **POST /v1/todos** - Create new TODO
+- **GET /api/v1/todos/{id}** - Get specific TODO by ID
+- **PUT /api/v1/todos/{id}** - Replace entire TODO
+- **PATCH /api/v1/todos/{id}** - Partial update TODO
+- **DELETE /api/v1/todos/{id}** - Delete TODO
+- **GET /docs** - Swagger UI documentation
+- **GET /health** - Health check endpoint
+
 ## Critical Files to Understand
 
+### Core Configuration & Setup
 - `src/config/config.ts` - Environment configuration and validation
-- `src/app.ts` - Express app setup and middleware stack
-- `src/middleware/errorHandler.ts` - Global error handling
-- `docker-compose.yml` - Container orchestration
-- `todo-service-api.yaml` - API contract specification
+- `src/config/database.ts` - TypeORM DataSource configuration and initialization
+- `src/app.ts` - Express app setup and middleware stack (CORS, logging, routes)
+- `src/server.ts` - Application entry point with database connection startup
+
+### Database Layer
+- `src/entities/Todo.ts` - Main Todo entity with TypeORM decorators
+- `src/entities/SubTask.ts` - SubTask entity with Todo relationship
+- `src/entities/User.ts` - User entity for future authentication
+- `src/repositories/TodoRepository.ts` - Repository pattern with complex querying
+- `src/seeds/initial-data.ts` - Database seeding script with demo data
+
+### API Layer
+- `src/routes/simple-todos-db.ts` - Database-backed TODO CRUD implementation
+- `src/routes/docs.ts` - Swagger UI configuration and OpenAPI spec serving
+- `src/routes/health.ts` - Health check endpoints
+- `src/middleware/errorHandler.ts` - Global error handling with async support
+- `src/utils/asyncHandler.ts` - Async route handler wrapper
+
+### Infrastructure
+- `docker-compose.yml` - Container orchestration (API + PostgreSQL with full env vars)
+- `todo-service-api.yaml` - Complete API contract specification
+- `scripts/init-db.sql` - Database initialization script for Docker
