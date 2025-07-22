@@ -1,0 +1,1250 @@
+openapi: 3.0.3
+
+info:
+  title: TODO Service API
+  version: v1
+  description: |
+    A comprehensive REST API for managing TODO items with full CRUD operations, 
+    advanced filtering, validation, and proper error handling.
+    
+    This API follows REST best practices and provides:
+    - Standard CRUD operations for TODO items
+    - Advanced filtering, sorting, and pagination
+    - Bulk operations for efficient processing
+    - Comprehensive validation and error handling
+    - Security through API keys or JWT tokens
+    - Rate limiting and monitoring capabilities
+  contact:
+    name: TODO Service API Support
+    email: api-support@example.com
+    url: https://example.com/support
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:3001/api/v1
+    description: Local development server
+  - url: http://localhost:3001/v1
+    description: Local development server (alternative path)
+
+# security:
+#   - bearerAuth: []
+#   - apiKeyAuth: []
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        JWT token authentication. Include the token in the Authorization header:
+        `Authorization: Bearer <token>`
+    apiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: |
+        API key authentication. Include your API key in the X-API-Key header:
+        `X-API-Key: <your-api-key>`
+
+  parameters:
+    pageParam:
+      name: page
+      in: query
+      description: Page number for pagination (1-based)
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+        example: 1
+    limitParam:
+      name: limit
+      in: query
+      description: Number of items per page
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+        example: 20
+    sortParam:
+      name: sort
+      in: query
+      description: |
+        Sort field and direction. Format: `field:direction` where direction is `asc` or `desc`.
+        Multiple sort fields can be specified separated by commas.
+      required: false
+      schema:
+        type: string
+        example: "createdAt:desc,title:asc"
+    requestIdHeader:
+      name: X-Request-ID
+      in: header
+      description: Unique identifier for the request (for tracing and debugging)
+      required: false
+      schema:
+        type: string
+        format: uuid
+        example: "123e4567-e89b-12d3-a456-426614174000"
+
+  headers:
+    rateLimitLimit:
+      description: The number of allowed requests in the current period
+      schema:
+        type: integer
+        example: 1000
+    rateLimitRemaining:
+      description: The number of remaining requests in the current period
+      schema:
+        type: integer
+        example: 999
+    rateLimitReset:
+      description: The time at which the current rate limit window resets (Unix timestamp)
+      schema:
+        type: integer
+        example: 1640995200
+    requestId:
+      description: Unique identifier for the request
+      schema:
+        type: string
+        format: uuid
+        example: "123e4567-e89b-12d3-a456-426614174000"
+
+  schemas:
+    TodoItem:
+      type: object
+      required:
+        - id
+        - title
+        - status
+        - priority
+        - createdAt
+        - updatedAt
+        - userId
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+          description: Unique identifier for the TODO item
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+          description: Title of the TODO item
+          example: "Complete project documentation"
+        description:
+          type: string
+          maxLength: 1000
+          nullable: true
+          description: Detailed description of the TODO item
+          example: "Write comprehensive API documentation including examples and usage guidelines"
+        status:
+          type: string
+          enum: ['pending', 'in-progress', 'completed']
+          description: Current status of the TODO item
+          example: "pending"
+        priority:
+          type: string
+          enum: ['low', 'medium', 'high']
+          description: Priority level of the TODO item
+          example: "high"
+        dueDate:
+          type: string
+          format: date-time
+          nullable: true
+          description: Due date and time for the TODO item
+          example: "2024-12-31T23:59:59Z"
+        tags:
+          type: array
+          maxItems: 10
+          items:
+            type: string
+            minLength: 1
+            maxLength: 50
+          description: Array of tags for categorizing the TODO item
+          example: ["work", "documentation", "api"]
+        createdAt:
+          type: string
+          format: date-time
+          readOnly: true
+          description: Timestamp when the TODO item was created
+          example: "2024-01-01T10:00:00Z"
+        updatedAt:
+          type: string
+          format: date-time
+          readOnly: true
+          description: Timestamp when the TODO item was last updated
+          example: "2024-01-01T10:30:00Z"
+        userId:
+          type: string
+          format: uuid
+          description: ID of the user who owns this TODO item
+          example: "456e7890-e12b-34d5-a678-901234567890"
+        subTasks:
+          type: array
+          nullable: true
+          items:
+            $ref: '#/components/schemas/SubTask'
+          description: Array of sub-tasks for this TODO item
+
+    SubTask:
+      type: object
+      required:
+        - id
+        - title
+        - completed
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+          description: Unique identifier for the sub-task
+          example: "789e0123-e45b-67d8-a901-234567890123"
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+          description: Title of the sub-task
+          example: "Review API endpoints"
+        completed:
+          type: boolean
+          description: Whether the sub-task is completed
+          example: false
+
+    TodoItemInput:
+      type: object
+      required:
+        - title
+        - status
+        - priority
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+          description: Title of the TODO item
+          example: "Complete project documentation"
+        description:
+          type: string
+          maxLength: 1000
+          nullable: true
+          description: Detailed description of the TODO item
+          example: "Write comprehensive API documentation including examples and usage guidelines"
+        status:
+          type: string
+          enum: ['pending', 'in-progress', 'completed']
+          description: Current status of the TODO item
+          example: "pending"
+        priority:
+          type: string
+          enum: ['low', 'medium', 'high']
+          description: Priority level of the TODO item
+          example: "high"
+        dueDate:
+          type: string
+          format: date-time
+          nullable: true
+          description: Due date and time for the TODO item
+          example: "2024-12-31T23:59:59Z"
+        tags:
+          type: array
+          maxItems: 10
+          items:
+            type: string
+            minLength: 1
+            maxLength: 50
+          description: Array of tags for categorizing the TODO item
+          example: ["work", "documentation", "api"]
+        subTasks:
+          type: array
+          nullable: true
+          items:
+            $ref: '#/components/schemas/SubTaskInput'
+          description: Array of sub-tasks for this TODO item
+
+    SubTaskInput:
+      type: object
+      required:
+        - title
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+          description: Title of the sub-task
+          example: "Review API endpoints"
+        completed:
+          type: boolean
+          description: Whether the sub-task is completed
+          default: false
+          example: false
+
+    TodoItemUpdate:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+          description: Title of the TODO item
+          example: "Complete project documentation"
+        description:
+          type: string
+          maxLength: 1000
+          nullable: true
+          description: Detailed description of the TODO item
+          example: "Write comprehensive API documentation including examples and usage guidelines"
+        status:
+          type: string
+          enum: ['pending', 'in-progress', 'completed']
+          description: Current status of the TODO item
+          example: "in-progress"
+        priority:
+          type: string
+          enum: ['low', 'medium', 'high']
+          description: Priority level of the TODO item
+          example: "high"
+        dueDate:
+          type: string
+          format: date-time
+          nullable: true
+          description: Due date and time for the TODO item
+          example: "2024-12-31T23:59:59Z"
+        tags:
+          type: array
+          maxItems: 10
+          items:
+            type: string
+            minLength: 1
+            maxLength: 50
+          description: Array of tags for categorizing the TODO item
+          example: ["work", "documentation", "api"]
+
+    PaginatedTodoResponse:
+      type: object
+      required:
+        - items
+        - total
+        - page
+        - limit
+        - hasMore
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/TodoItem'
+          description: Array of TODO items for the current page
+        total:
+          type: integer
+          minimum: 0
+          description: Total number of TODO items available
+          example: 150
+        page:
+          type: integer
+          minimum: 1
+          description: Current page number (1-based)
+          example: 1
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 100
+          description: Number of items per page
+          example: 20
+        hasMore:
+          type: boolean
+          description: Whether there are more pages available
+          example: true
+
+    Error:
+      type: object
+      required:
+        - code
+        - message
+        - requestId
+      properties:
+        code:
+          type: string
+          description: Error code for programmatic handling
+          example: "INVALID_INPUT"
+        message:
+          type: string
+          description: Human-readable error message
+          example: "The provided input is invalid"
+        requestId:
+          type: string
+          format: uuid
+          description: Unique identifier for the request (for tracing)
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        timestamp:
+          type: string
+          format: date-time
+          description: Timestamp when the error occurred
+          example: "2024-01-01T10:00:00Z"
+
+    ValidationError:
+      allOf:
+        - $ref: '#/components/schemas/Error'
+        - type: object
+          required:
+            - details
+          properties:
+            details:
+              type: array
+              items:
+                type: object
+                required:
+                  - field
+                  - message
+                  - code
+                properties:
+                  field:
+                    type: string
+                    description: Name of the field that failed validation
+                    example: "title"
+                  message:
+                    type: string
+                    description: Validation error message for this field
+                    example: "Title is required and cannot be empty"
+                  code:
+                    type: string
+                    description: Validation error code
+                    example: "REQUIRED_FIELD_MISSING"
+                  rejectedValue:
+                    description: The value that was rejected (can be any type)
+                    example: ""
+              description: Array of field-specific validation errors
+
+    BusinessLogicError:
+      allOf:
+        - $ref: '#/components/schemas/Error'
+        - type: object
+          required:
+            - reason
+          properties:
+            reason:
+              type: string
+              description: Business logic reason for the error
+              example: "Cannot complete TODO item with pending sub-tasks"
+
+    BulkOperation:
+      type: object
+      required:
+        - operation
+        - ids
+      properties:
+        operation:
+          type: string
+          enum: ['complete', 'delete', 'update_status', 'add_tags', 'remove_tags']
+          description: Type of bulk operation to perform
+          example: "complete"
+        ids:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items:
+            type: string
+            format: uuid
+          description: Array of TODO item IDs to operate on
+          example: ["123e4567-e89b-12d3-a456-426614174000", "456e7890-e12b-34d5-a678-901234567890"]
+        data:
+          type: object
+          description: Additional data for the operation (varies by operation type)
+          example:
+            status: "completed"
+            tags: ["urgent", "review"]
+
+    BulkOperationResult:
+      type: object
+      required:
+        - operation
+        - requestedCount
+        - successCount
+        - failedCount
+        - results
+      properties:
+        operation:
+          type: string
+          description: Type of operation that was performed
+          example: "complete"
+        requestedCount:
+          type: integer
+          description: Number of items requested for operation
+          example: 5
+        successCount:
+          type: integer
+          description: Number of items successfully processed
+          example: 4
+        failedCount:
+          type: integer
+          description: Number of items that failed processing
+          example: 1
+        results:
+          type: array
+          items:
+            type: object
+            required:
+              - id
+              - success
+            properties:
+              id:
+                type: string
+                format: uuid
+                description: ID of the TODO item
+                example: "123e4567-e89b-12d3-a456-426614174000"
+              success:
+                type: boolean
+                description: Whether the operation succeeded for this item
+                example: true
+              error:
+                type: string
+                description: Error message if the operation failed
+                example: "Item not found"
+          description: Array of results for each item
+
+    HealthCheck:
+      type: object
+      required:
+        - status
+        - timestamp
+        - version
+        - environment
+      properties:
+        status:
+          type: string
+          enum: ['healthy', 'unhealthy', 'degraded']
+          description: Overall health status
+          example: "healthy"
+        timestamp:
+          type: string
+          format: date-time
+          description: Timestamp of the health check
+          example: "2024-01-01T10:00:00Z"
+        uptime:
+          type: number
+          description: Server uptime in seconds
+          example: 3600.5
+        version:
+          type: string
+          description: API version
+          example: "1.0.0"
+        environment:
+          type: string
+          description: Environment name
+          example: "production"
+        services:
+          type: object
+          properties:
+            database:
+              type: string
+              enum: ['healthy', 'unhealthy', 'unknown']
+              description: Database connection status
+              example: "healthy"
+            cache:
+              type: string
+              enum: ['healthy', 'unhealthy', 'unknown']
+              description: Cache service status
+              example: "healthy"
+          description: Status of dependent services
+
+tags:
+  - name: todos
+    description: TODO item management operations
+  - name: bulk
+    description: Bulk operations for multiple TODO items
+  - name: search
+    description: Advanced search and filtering operations
+  - name: stats
+    description: Statistics and analytics endpoints
+  - name: tags
+    description: Tag management operations
+  - name: health
+    description: Health check and monitoring endpoints
+
+paths:
+  /todos:
+    get:
+      summary: List TODO items
+      description: |
+        Retrieve a paginated list of TODO items. Supports filtering by status, priority, 
+        due date, and tags. Results are sorted by creation date (newest first) by default.
+      operationId: listTodos
+      tags:
+        - todos
+      security: []  # No authentication required
+      parameters:
+        - $ref: '#/components/parameters/pageParam'
+        - $ref: '#/components/parameters/limitParam'
+        - $ref: '#/components/parameters/sortParam'
+        - name: status
+          in: query
+          description: Filter by TODO status
+          required: false
+          schema:
+            type: string
+            enum: ['pending', 'in-progress', 'completed']
+          example: "pending"
+        - name: priority
+          in: query
+          description: Filter by priority level
+          required: false
+          schema:
+            type: string
+            enum: ['low', 'medium', 'high']
+          example: "high"
+        - name: dueBefore
+          in: query
+          description: Filter todos due before this date (ISO 8601)
+          required: false
+          schema:
+            type: string
+            format: date-time
+          example: "2024-12-31T23:59:59Z"
+        - name: dueAfter
+          in: query
+          description: Filter todos due after this date (ISO 8601)
+          required: false
+          schema:
+            type: string
+            format: date-time
+          example: "2024-01-01T00:00:00Z"
+        - name: tags
+          in: query
+          description: Filter by tags (comma-separated, matches any)
+          required: false
+          schema:
+            type: string
+          example: "work,urgent"
+        - name: search
+          in: query
+          description: Search in title and description
+          required: false
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 200
+          example: "documentation"
+        - $ref: '#/components/parameters/requestIdHeader'
+      responses:
+        '200':
+          description: Paginated list of TODO items retrieved successfully
+          headers:
+            X-Total-Count:
+              description: Total number of items across all pages
+              schema:
+                type: integer
+                example: 150
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/rateLimitLimit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/rateLimitRemaining'
+            X-RateLimit-Reset:
+              $ref: '#/components/headers/rateLimitReset'
+            X-Request-ID:
+              $ref: '#/components/headers/requestId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedTodoResponse'
+              examples:
+                successful_response:
+                  summary: Successful paginated response
+                  value:
+                    items:
+                      - id: "123e4567-e89b-12d3-a456-426614174000"
+                        title: "Complete project documentation"
+                        description: "Write comprehensive API documentation including examples"
+                        status: "in-progress"
+                        priority: "high"
+                        dueDate: "2024-12-31T23:59:59Z"
+                        tags: ["work", "documentation", "api"]
+                        createdAt: "2024-01-01T10:00:00Z"
+                        updatedAt: "2024-01-01T10:30:00Z"
+                        userId: "456e7890-e12b-34d5-a678-901234567890"
+                        subTasks: []
+                      - id: "789e0123-e45b-67d8-a901-234567890123"
+                        title: "Review code changes"
+                        description: null
+                        status: "pending"
+                        priority: "medium"
+                        dueDate: null
+                        tags: ["review"]
+                        createdAt: "2024-01-01T09:00:00Z"
+                        updatedAt: "2024-01-01T09:00:00Z"
+                        userId: "456e7890-e12b-34d5-a678-901234567890"
+                        subTasks: null
+                    total: 42
+                    page: 1
+                    limit: 20
+                    hasMore: true
+        '400':
+          description: Invalid request parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+                
+    post:
+      summary: Create a new TODO item
+      description: |
+        Create a new TODO item with the provided details. The ID, creation timestamp, 
+        and update timestamp will be automatically generated.
+      operationId: createTodo
+      tags:
+        - todos
+      security: []  # No authentication required
+      parameters:
+        - $ref: '#/components/parameters/requestIdHeader'
+      requestBody:
+        required: true
+        description: TODO item details to create
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TodoItemInput'
+            examples:
+              basic_todo:
+                summary: Basic TODO item
+                value:
+                  title: "Complete project documentation"
+                  description: "Write comprehensive API documentation including examples"
+                  status: "pending"
+                  priority: "high"
+                  dueDate: "2024-12-31T23:59:59Z"
+                  tags: ["work", "documentation", "api"]
+              minimal_todo:
+                summary: Minimal TODO item
+                value:
+                  title: "Quick task"
+                  status: "pending"
+                  priority: "low"
+              todo_with_subtasks:
+                summary: TODO with sub-tasks
+                value:
+                  title: "Complex project"
+                  description: "Multi-step project with sub-tasks"
+                  status: "pending"
+                  priority: "high"
+                  tags: ["project"]
+                  subTasks:
+                    - title: "Research phase"
+                      completed: false
+                    - title: "Planning phase"
+                      completed: false
+      responses:
+        '201':
+          description: TODO item created successfully
+          headers:
+            Location:
+              description: URL of the created TODO item
+              schema:
+                type: string
+                format: uri
+              example: "/api/v1/todos/123e4567-e89b-12d3-a456-426614174000"
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/rateLimitLimit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/rateLimitRemaining'
+            X-RateLimit-Reset:
+              $ref: '#/components/headers/rateLimitReset'
+            X-Request-ID:
+              $ref: '#/components/headers/requestId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TodoItem'
+              examples:
+                created_todo:
+                  summary: Successfully created TODO
+                  value:
+                    id: "123e4567-e89b-12d3-a456-426614174000"
+                    title: "Complete project documentation"
+                    description: "Write comprehensive API documentation including examples"
+                    status: "pending"
+                    priority: "high"
+                    dueDate: "2024-12-31T23:59:59Z"
+                    tags: ["work", "documentation", "api"]
+                    createdAt: "2024-01-01T10:00:00Z"
+                    updatedAt: "2024-01-01T10:00:00Z"
+                    userId: "456e7890-e12b-34d5-a678-901234567890"
+                    subTasks: []
+        '400':
+          description: Invalid input data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+              examples:
+                validation_error:
+                  summary: Validation failed
+                  value:
+                    code: "VALIDATION_ERROR"
+                    message: "Request validation failed"
+                    requestId: "123e4567-e89b-12d3-a456-426614174000"
+                    timestamp: "2024-01-01T10:00:00Z"
+                    details:
+                      - field: "title"
+                        message: "Title is required and cannot be empty"
+                        code: "REQUIRED_FIELD_MISSING"
+                        rejectedValue: ""
+                      - field: "priority"
+                        message: "Priority must be one of: low, medium, high"
+                        code: "INVALID_ENUM_VALUE"
+                        rejectedValue: "urgent"
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /todos/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Unique identifier of the TODO item
+        schema:
+          type: string
+          format: uuid
+        example: "123e4567-e89b-12d3-a456-426614174000"
+        
+    get:
+      summary: Get a specific TODO item
+      description: |
+        Retrieve a single TODO item by its unique identifier. Returns the complete 
+        TODO item including all sub-tasks.
+      operationId: getTodoById
+      tags:
+        - todos
+      security: []  # No authentication required
+      parameters:
+        - $ref: '#/components/parameters/requestIdHeader'
+      responses:
+        '200':
+          description: TODO item retrieved successfully
+          headers:
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/rateLimitLimit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/rateLimitRemaining'
+            X-RateLimit-Reset:
+              $ref: '#/components/headers/rateLimitReset'
+            X-Request-ID:
+              $ref: '#/components/headers/requestId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TodoItem'
+              examples:
+                single_todo:
+                  summary: Single TODO item
+                  value:
+                    id: "123e4567-e89b-12d3-a456-426614174000"
+                    title: "Complete project documentation"
+                    description: "Write comprehensive API documentation including examples"
+                    status: "in-progress"
+                    priority: "high"
+                    dueDate: "2024-12-31T23:59:59Z"
+                    tags: ["work", "documentation", "api"]
+                    createdAt: "2024-01-01T10:00:00Z"
+                    updatedAt: "2024-01-01T10:30:00Z"
+                    userId: "456e7890-e12b-34d5-a678-901234567890"
+                    subTasks:
+                      - id: "789e0123-e45b-67d8-a901-234567890123"
+                        title: "Write API reference"
+                        completed: true
+                      - id: "012e3456-e78b-90d1-a234-567890123456"
+                        title: "Create usage examples"
+                        completed: false
+        '400':
+          description: Invalid TODO ID format
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+        '404':
+          description: TODO item not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                not_found:
+                  summary: TODO not found
+                  value:
+                    code: "TODO_NOT_FOUND"
+                    message: "TODO item with the specified ID was not found"
+                    requestId: "123e4567-e89b-12d3-a456-426614174000"
+                    timestamp: "2024-01-01T10:00:00Z"
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    put:
+      summary: Update a TODO item (full replacement)
+      description: |
+        Completely replace a TODO item with the provided data. All fields except 
+        ID, creation timestamp, and user ID will be updated.
+      operationId: updateTodo
+      tags:
+        - todos
+      security: []  # No authentication required
+      parameters:
+        - $ref: '#/components/parameters/requestIdHeader'
+      requestBody:
+        required: true
+        description: Updated TODO item data
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TodoItemInput'
+            examples:
+              updated_todo:
+                summary: Complete TODO update
+                value:
+                  title: "Complete project documentation (Updated)"
+                  description: "Write comprehensive API documentation with examples and tutorials"
+                  status: "in-progress"
+                  priority: "high"
+                  dueDate: "2024-12-25T18:00:00Z"
+                  tags: ["work", "documentation", "api", "urgent"]
+                  subTasks:
+                    - title: "Write API reference"
+                      completed: true
+                    - title: "Create usage examples"
+                      completed: false
+                    - title: "Add tutorial section"
+                      completed: false
+      responses:
+        '200':
+          description: TODO item updated successfully
+          headers:
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/rateLimitLimit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/rateLimitRemaining'
+            X-RateLimit-Reset:
+              $ref: '#/components/headers/rateLimitReset'
+            X-Request-ID:
+              $ref: '#/components/headers/requestId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TodoItem'
+        '400':
+          description: Invalid input data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: TODO item not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Conflict - concurrent modification detected
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BusinessLogicError'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    patch:
+      summary: Partially update a TODO item
+      description: |
+        Update specific fields of a TODO item. Only provided fields will be modified,
+        others will remain unchanged. The updatedAt timestamp will be automatically set.
+      operationId: patchTodo
+      tags:
+        - todos
+      security: []  # No authentication required
+      parameters:
+        - $ref: '#/components/parameters/requestIdHeader'
+      requestBody:
+        required: true
+        description: Fields to update (partial TODO item data)
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TodoItemUpdate'
+            examples:
+              status_update:
+                summary: Update only status
+                value:
+                  status: "completed"
+              priority_and_tags:
+                summary: Update priority and add tags
+                value:
+                  priority: "high"
+                  tags: ["urgent", "review", "important"]
+              partial_update:
+                summary: Multiple field update
+                value:
+                  title: "Updated title"
+                  description: "Updated description with more details"
+                  dueDate: "2024-12-20T15:00:00Z"
+      responses:
+        '200':
+          description: TODO item updated successfully
+          headers:
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/rateLimitLimit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/rateLimitRemaining'
+            X-RateLimit-Reset:
+              $ref: '#/components/headers/rateLimitReset'
+            X-Request-ID:
+              $ref: '#/components/headers/requestId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TodoItem'
+        '400':
+          description: Invalid input data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: TODO item not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Conflict - concurrent modification detected
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BusinessLogicError'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    delete:
+      summary: Delete a TODO item
+      description: |
+        Permanently delete a TODO item and all its sub-tasks. This action cannot be undone.
+        Only the owner of the TODO item can delete it.
+      operationId: deleteTodo
+      tags:
+        - todos
+      security: []  # No authentication required
+      parameters:
+        - $ref: '#/components/parameters/requestIdHeader'
+      responses:
+        '204':
+          description: TODO item deleted successfully
+          headers:
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/rateLimitLimit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/rateLimitRemaining'
+            X-RateLimit-Reset:
+              $ref: '#/components/headers/rateLimitReset'
+            X-Request-ID:
+              $ref: '#/components/headers/requestId'
+        '400':
+          description: Invalid TODO ID format
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: TODO item not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Cannot delete TODO with incomplete dependencies
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BusinessLogicError'
+              examples:
+                dependency_conflict:
+                  summary: Has incomplete subtasks
+                  value:
+                    code: "DELETE_CONFLICT"
+                    message: "Cannot delete TODO item with incomplete sub-tasks"
+                    reason: "TODO item has 2 incomplete sub-tasks that must be completed or deleted first"
+                    requestId: "123e4567-e89b-12d3-a456-426614174000"
+                    timestamp: "2024-01-01T10:00:00Z"
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /docs:
+    get:
+      summary: API Documentation
+      description: |
+        Interactive Swagger UI documentation for the TODO Service API.
+        Provides a web interface to explore and test all API endpoints.
+      operationId: getApiDocs
+      tags:
+        - health
+      security: []  # No authentication required for documentation
+      responses:
+        '200':
+          description: Swagger UI documentation page
+          content:
+            text/html:
+              schema:
+                type: string
+              example: "<!DOCTYPE html><html>... Swagger UI HTML ...</html>"
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /docs/openapi.json:
+    get:
+      summary: OpenAPI Specification (JSON)
+      description: |
+        Returns the OpenAPI 3.0 specification in JSON format.
+        Used by Swagger UI and other API documentation tools.
+      operationId: getOpenApiSpec
+      tags:
+        - health
+      security: []  # No authentication required for spec
+      responses:
+        '200':
+          description: OpenAPI specification in JSON format
+          content:
+            application/json:
+              schema:
+                type: object
+              example:
+                openapi: "3.0.3"
+                info:
+                  title: "TODO Service API"
+                  version: "v1"
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /health:
+    get:
+      summary: Health Check
+      description: |
+        Returns the health status of the API and its dependencies.
+        Used for monitoring and load balancer health checks.
+      operationId: getHealthStatus
+      tags:
+        - health
+      security: []  # No authentication required for health checks
+      responses:
+        '200':
+          description: Service is healthy
+          headers:
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/rateLimitLimit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/rateLimitRemaining'
+            X-RateLimit-Reset:
+              $ref: '#/components/headers/rateLimitReset'
+            X-Request-ID:
+              $ref: '#/components/headers/requestId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthCheck'
+              examples:
+                healthy:
+                  summary: All services healthy
+                  value:
+                    status: "healthy"
+                    timestamp: "2024-01-01T10:00:00Z"
+                    uptime: 3600.5
+                    version: "1.0.0"
+                    environment: "production"
+                    services:
+                      database: "healthy"
+                      cache: "healthy"
+                degraded:
+                  summary: Some services degraded
+                  value:
+                    status: "degraded"
+                    timestamp: "2024-01-01T10:00:00Z"
+                    uptime: 3600.5
+                    version: "1.0.0"
+                    environment: "production"
+                    services:
+                      database: "healthy"
+                      cache: "unhealthy"
+        '503':
+          description: Service is unhealthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthCheck'
+              examples:
+                unhealthy:
+                  summary: Service unhealthy
+                  value:
+                    status: "unhealthy"
+                    timestamp: "2024-01-01T10:00:00Z"
+                    uptime: 3600.5
+                    version: "1.0.0"
+                    environment: "production"
+                    services:
+                      database: "unhealthy"
+                      cache: "unhealthy"

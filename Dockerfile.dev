@@ -1,0 +1,32 @@
+FROM node:20-alpine
+
+# Install curl for health checks
+RUN apk add --no-cache curl
+
+# Set working directory
+WORKDIR /app
+
+# Create non-root user
+RUN addgroup -g 1001 -S nodejs && \
+    adduser -S todo -u 1001
+
+# Copy package files
+COPY --chown=todo:nodejs package*.json ./
+
+# Install all dependencies (both production and dev)
+RUN npm install
+
+# Copy source code
+COPY --chown=todo:nodejs . .
+
+# Ensure tslib is available
+RUN npm install tslib@^2.6.2
+
+# Expose port and debug port
+EXPOSE 3000 9229
+
+# Switch to non-root user
+USER todo
+
+# Start the development server with debugging
+CMD ["npm", "run", "dev"]
